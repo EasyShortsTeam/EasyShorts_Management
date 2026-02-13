@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,7 +13,8 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
 
-    jwt_secret: str = "change-me"
+    # Accept either JWT_SECRET (this repo) or SECRET_KEY (EasyShorts_backend)
+    jwt_secret: str = Field(default="change-me", validation_alias=AliasChoices("JWT_SECRET", "SECRET_KEY"))
 
     kakao_client_id: str | None = None
     kakao_client_secret: str | None = None
