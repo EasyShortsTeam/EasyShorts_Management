@@ -58,8 +58,15 @@ cd backend
 - `POST /api/media/upload` (multipart stub)
 - `GET /api/media/{media_id}` (download stub)
 
+## Admin: Credits
+
+- 프론트 페이지: `/credits`
+- 관련 API: `/api/admin/credits/*`
+- 설계 메모: `docs/CREDITS_DESIGN.md`
+
 ## 다음 단계(권장)
 
 - 실제 DB 연결(`app/db/*`) + 모델/마이그레이션
 - JWT/OAuth 실제 구현(`app/core/security.py`)
 - 관리자 권한(roles/permissions) 기반으로 `/api/admin/*` 확장
+- 크레딧은 in-memory 스캐폴드라서 DB+트랜잭션+감사로그로 교체 필요
