@@ -69,7 +69,14 @@ export default function AdminLayout({ children }: PropsWithChildren) {
         </Toolbar>
       </AppBar>
 
-      <Container sx={{ py: 3 }}>
+      <Container
+        maxWidth={false}
+        disableGutters
+        sx={{
+          py: 3,
+          px: { xs: 2, md: 3 },
+        }}
+      >
         {children}
       </Container>
     </Box>
