@@ -4,3 +4,4 @@ from .series import router as series_router
 from .episodes import router as episodes_router
 from .shorts import router as shorts_router
 from .media import router as media_router
+from .credits import router as credits_router

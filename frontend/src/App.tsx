@@ -8,6 +8,7 @@ import UsersPage from './pages/UsersPage'
 import EpisodesPage from './pages/EpisodesPage'
 import JobsPage from './pages/JobsPage'
 import ConfigPage from './pages/ConfigPage'
+import CreditsPage from './pages/CreditsPage'
 
 const queryClient = new QueryClient()
 
@@ -55,6 +56,14 @@ export default function App() {
             element={
               <AdminLayout>
                 <ConfigPage />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/credits"
+            element={
+              <AdminLayout>
+                <CreditsPage />
               </AdminLayout>
             }
           />

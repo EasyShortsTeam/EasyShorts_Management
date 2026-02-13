@@ -8,6 +8,7 @@ import { getMe } from '../features/auth/authApi'
 const navItems = [
   { to: '/', label: '대시보드' },
   { to: '/users', label: '유저' },
+  { to: '/credits', label: '크레딧' },
   { to: '/episodes', label: '에피소드' },
   { to: '/jobs', label: '잡' },
   { to: '/config', label: '설정' },
