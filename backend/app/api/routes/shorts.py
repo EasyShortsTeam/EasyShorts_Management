@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.security import require_admin
 from app.schemas.common import Message
 from app.schemas.shorts import Short, ShortCreate, ShortUpdate
 from app.services.mock_store import store
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 @router.get("", response_model=list[Short])

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 
+from app.core.security import require_admin
 from app.schemas.common import Message
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 @router.post("/upload", response_model=Message)
