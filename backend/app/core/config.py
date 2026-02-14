@@ -1,9 +1,15 @@
+from pathlib import Path
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# Load backend/.env reliably regardless of current working directory
+_ENV_FILE = str(Path(__file__).resolve().parents[2] / ".env")
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "EasyShorts Management Admin Backend"
     app_env: str = "dev"
