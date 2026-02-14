@@ -476,17 +476,38 @@ def admin_delete_episode(
             if parsed:
                 inferred_bucket = parsed[0]
                 break
-        bucket_for_story = settings.s3_results_bucket or inferred_bucket
-        if bucket_for_story and story_keys:
+        # bucket selection heuristics
+        bucket_for_results = settings.s3_results_bucket or inferred_bucket
+        bucket_for_userassets = settings.s3_userassets_bucket
+
+        if story_keys:
+            seen: set[tuple[str, str]] = set()
             for key in story_keys:
                 k = (key or "").lstrip("/")
                 if not k:
                     continue
+
+                # If s3_key is under userassets/* prefer userassets bucket
+                bucket = None
+                if k.startswith("userassets/") and bucket_for_userassets:
+                    bucket = bucket_for_userassets
+                else:
+                    bucket = bucket_for_results
+
+                if not bucket:
+                    failed_objects.append(f"s3://(unknown-bucket)/{k}")
+                    continue
+
+                sig = (bucket, k)
+                if sig in seen:
+                    continue
+                seen.add(sig)
+
                 try:
-                    delete_s3_object(bucket=bucket_for_story, key=k)
-                    deleted_objects.append(f"s3://{bucket_for_story}/{k}")
+                    delete_s3_object(bucket=bucket, key=k)
+                    deleted_objects.append(f"s3://{bucket}/{k}")
                 except Exception:
-                    failed_objects.append(f"s3://{bucket_for_story}/{k}")
+                    failed_objects.append(f"s3://{bucket}/{k}")
 
     # Delete DB rows (manual cascade to be safe)
     # story assets/tts/shots
