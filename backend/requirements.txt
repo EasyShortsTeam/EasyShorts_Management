@@ -5,3 +5,10 @@ pydantic>=2.7.0
 pydantic-settings>=2.3.0
 python-multipart>=0.0.9
 python-jose[cryptography]>=3.3.0
+
+# DB access to EasyShorts_backend
+sqlalchemy>=2.0.36
+pymysql>=1.1.0
+
+# S3 asset management
+boto3>=1.28.0
