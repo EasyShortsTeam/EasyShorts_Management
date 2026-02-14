@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -15,10 +15,14 @@ from app.schemas.admin import (
     AdminEpisode,
     AdminJob,
     AdminUser,
+    AssetItem,
     CreditPatch,
     Page,
     PlanPatch,
 )
+
+from app.core.config import settings
+from app.services.assets import list_local_assets, list_s3_objects, upload_s3
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -335,3 +339,69 @@ def admin_get_job(job_id: str, db: Session = Depends(get_db)):
         result=j.result,
         error=j.error,
     )
+
+
+# --- Assets (S3 or local static) ---
+
+def _resolve_bucket(kind: str) -> str | None:
+    if kind == "fonts":
+        return settings.s3_fonts_bucket
+    if kind == "soundeffects":
+        return settings.s3_soundeffects_bucket
+    if kind == "userassets":
+        return settings.s3_userassets_bucket
+    return None
+
+
+def _resolve_local_dir(kind: str):
+    # /static/assets/{kind}/*
+    from pathlib import Path
+
+    return Path("app/static") / "assets" / kind
+
+
+@router.get("/assets/{kind}", response_model=list[AssetItem])
+def admin_list_assets(kind: str, prefix: str = Query(default="")):
+    bucket = _resolve_bucket(kind)
+    if bucket:
+        items = list_s3_objects(bucket=bucket, prefix=prefix or "")
+        return [AssetItem(key=i.key, size=i.size, last_modified=i.last_modified, url=i.url) for i in items]
+
+    base = _resolve_local_dir(kind)
+    items = list_local_assets(base)
+    if prefix:
+        items = [i for i in items if i.key.startswith(prefix)]
+
+    # Local URL points to mounted /static
+    return [AssetItem(key=i.key, size=i.size, last_modified=i.last_modified, url=f"/static/assets/{kind}/{i.key}") for i in items]
+
+
+@router.post("/assets/{kind}/upload", response_model=AssetItem)
+async def admin_upload_asset(kind: str, key: str = Query(...), file: UploadFile = File(...)):
+    bucket = _resolve_bucket(kind)
+
+    # sanitize key
+    key = (key or "").replace("..", "").lstrip("/")
+    if not key:
+        raise HTTPException(status_code=400, detail="key required")
+
+    if bucket:
+        from pathlib import Path
+
+        tmp_dir = Path(".tmp_uploads")
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = tmp_dir / (file.filename or "upload.bin")
+        content = await file.read()
+        tmp_path.write_bytes(content)
+
+        upload_s3(bucket=bucket, key=key, file_path=tmp_path, content_type=file.content_type)
+        return AssetItem(key=key)
+
+    # local mode
+    base = _resolve_local_dir(kind)
+    dest = base / key
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    content = await file.read()
+    dest.write_bytes(content)
+
+    return AssetItem(key=key, size=dest.stat().st_size, url=f"/static/assets/{kind}/{key}")
