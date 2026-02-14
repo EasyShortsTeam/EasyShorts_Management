@@ -63,3 +63,15 @@ cd backend
 - 실제 DB 연결(`app/db/*`) + 모델/마이그레이션
 - JWT/OAuth 실제 구현(`app/core/security.py`)
 - 관리자 권한(roles/permissions) 기반으로 `/api/admin/*` 확장
+
+## JWT 인증(HS256)
+
+이 관리 백엔드는 토큰을 발급하지 않고, **EasyShorts_backend가 발급한 JWT를 검증**하는 방식.
+
+- 요청 헤더: `Authorization: Bearer <JWT>`
+- 알고리즘: HS256
+- 필요 env: `JWT_SECRET` (EasyShorts_backend와 동일)
+
+인가 정책:
+- `/api/auth/me`는 유효한 토큰 필요(401)
+- `/api/series`, `/api/episodes`, `/api/shorts`, `/api/media`는 `role=admin` 필요(403)

@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.security import require_admin
 from app.schemas.series import Series, SeriesCreate, SeriesUpdate
 from app.services.mock_store import store
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 @router.get("", response_model=list[Series])

@@ -10,6 +10,8 @@ from app.api.routes import (
     episodes_router,
     shorts_router,
     media_router,
+    admin_router,
+    assets_router,
 )
 
 
@@ -34,6 +36,10 @@ def create_app() -> FastAPI:
     app.include_router(episodes_router, prefix="/api/episodes", tags=["episodes"])
     app.include_router(shorts_router, prefix="/api/shorts", tags=["shorts"])
     app.include_router(media_router, prefix="/api/media", tags=["media"])
+
+    # Admin-only (requires role=admin)
+    app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
+    app.include_router(assets_router, prefix="/api/admin", tags=["assets"])
 
     return app
 

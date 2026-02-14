@@ -1,6 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.core.security import get_current_user_stub
+from app.core.security import UserContext, get_current_user
 from app.schemas.auth import TokenResponse, User
 from app.schemas.common import Message
 
@@ -8,8 +8,7 @@ router = APIRouter()
 
 
 @router.get("/me", response_model=User)
-def me():
-    u = get_current_user_stub()
+def me(u: UserContext = Depends(get_current_user)):
     return User(id=u.id, email=u.email, role=u.role)
 
 
@@ -26,11 +25,12 @@ def kakao_login_placeholder():
 @router.get("/kakao/callback", response_model=TokenResponse)
 def kakao_callback_placeholder(code: str | None = None, state: str | None = None):
     # In real implementation, exchange 'code' for access_token, then issue JWT.
-    u = get_current_user_stub()
+    # Placeholder response. Real implementation should happen in EasyShorts_backend.
+    # This admin backend only verifies JWTs; it does not mint them.
     return TokenResponse(
         access_token="mock_access_token",
         token_type="bearer",
-        user=User(id=u.id, email=u.email, role=u.role),
+        user=User(id="unknown", email="", role="user"),
     )
 
 
