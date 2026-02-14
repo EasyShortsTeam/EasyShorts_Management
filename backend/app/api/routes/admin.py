@@ -466,8 +466,8 @@ def admin_delete_episode(
                 try:
                     delete_s3_object(bucket=bucket, key=key)
                     deleted_objects.append(url)
-                except Exception:
-                    failed_objects.append(url)
+                except Exception as e:
+                    failed_objects.append(f"{url} :: {type(e).__name__}: {e}")
 
         # 2) delete story assets by s3_key (bucket inferred)
         inferred_bucket: str | None = None
@@ -509,8 +509,8 @@ def admin_delete_episode(
                 try:
                     delete_s3_object(bucket=bucket, key=k)
                     deleted_objects.append(f"s3://{bucket}/{k}")
-                except Exception:
-                    failed_objects.append(f"s3://{bucket}/{k}")
+                except Exception as e:
+                    failed_objects.append(f"s3://{bucket}/{k} :: {type(e).__name__}: {e}")
 
     # Delete DB rows (manual cascade to be safe)
     # story assets/tts/shots
