@@ -479,6 +479,7 @@ def admin_delete_episode(
         # bucket selection heuristics
         bucket_for_results = settings.s3_results_bucket or inferred_bucket
         bucket_for_userassets = settings.s3_userassets_bucket
+        bucket_for_userbgm = settings.s3_userbgm_bucket
 
         if story_keys:
             seen: set[tuple[str, str]] = set()
@@ -487,10 +488,12 @@ def admin_delete_episode(
                 if not k:
                     continue
 
-                # If s3_key is under userassets/* prefer userassets bucket
+                # bucket routing by key prefix
                 bucket = None
                 if k.startswith("userassets/") and bucket_for_userassets:
                     bucket = bucket_for_userassets
+                elif k.startswith("userbgm/") and bucket_for_userbgm:
+                    bucket = bucket_for_userbgm
                 else:
                     bucket = bucket_for_results
 

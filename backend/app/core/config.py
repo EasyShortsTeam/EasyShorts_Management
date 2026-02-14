@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     # For deleting episode outputs/story assets when URLs are not available
     s3_results_bucket: str | None = Field(default=None, validation_alias=AliasChoices("S3_RESULTS_BUCKET", "RESULTS_BUCKET"))
+    s3_userbgm_bucket: str | None = Field(default=None, validation_alias=AliasChoices("S3_USERBGM_BUCKET"))
 
     kakao_client_id: str | None = None
     kakao_client_secret: str | None = None
