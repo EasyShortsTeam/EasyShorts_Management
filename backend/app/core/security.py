@@ -99,7 +99,9 @@ def get_current_user_verified(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="user not found")
 
     if not int(getattr(row, "is_active", 0)):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="inactive user")
+        # allow emergency bypass to recover from accidental admin deactivation
+        if u.id not in settings.superadmin_ids:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="inactive user")
 
     db_role = str(getattr(row, "role", "user") or "user")
     if db_role not in ("admin", "user"):

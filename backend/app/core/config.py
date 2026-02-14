@@ -39,11 +39,18 @@ class Settings(BaseSettings):
     kakao_client_secret: str | None = None
     kakao_redirect_uri: str | None = None
 
+    # Emergency bypass for admin lockout (comma-separated user_ids)
+    superadmin_user_ids: str = Field(default="", validation_alias=AliasChoices("SUPERADMIN_USER_IDS"))
+
     @property
     def cors_origin_list(self) -> list[str]:
         if self.cors_origins.strip() == "*":
             return ["*"]
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def superadmin_ids(self) -> set[str]:
+        return {x.strip() for x in (self.superadmin_user_ids or "").split(",") if x.strip()}
 
 
 settings = Settings()
