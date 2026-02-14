@@ -430,6 +430,13 @@ def admin_delete_episode(
     if out and out.preview_video_url:
         urls.append(str(out.preview_video_url))
 
+    # Story assets may store only s3_key (no full url)
+    story_keys = [
+        str(r[0])
+        for r in db.execute(select(StoryAsset.s3_key).where(StoryAsset.episode_id == episode_id)).all()
+        if r and r[0]
+    ]
+
     deleted_objects: list[str] = []
     failed_objects: list[str] = []
 
@@ -437,6 +444,8 @@ def admin_delete_episode(
         from pathlib import Path
 
         static_root = Path("app/static")
+
+        # 1) delete by output URLs
         for url in urls:
             # local static
             if url.startswith("/static/"):
@@ -459,6 +468,25 @@ def admin_delete_episode(
                     deleted_objects.append(url)
                 except Exception:
                     failed_objects.append(url)
+
+        # 2) delete story assets by s3_key (bucket inferred)
+        inferred_bucket: str | None = None
+        for url in urls:
+            parsed = parse_s3_url(url)
+            if parsed:
+                inferred_bucket = parsed[0]
+                break
+        bucket_for_story = settings.s3_results_bucket or inferred_bucket
+        if bucket_for_story and story_keys:
+            for key in story_keys:
+                k = (key or "").lstrip("/")
+                if not k:
+                    continue
+                try:
+                    delete_s3_object(bucket=bucket_for_story, key=k)
+                    deleted_objects.append(f"s3://{bucket_for_story}/{k}")
+                except Exception:
+                    failed_objects.append(f"s3://{bucket_for_story}/{k}")
 
     # Delete DB rows (manual cascade to be safe)
     # story assets/tts/shots

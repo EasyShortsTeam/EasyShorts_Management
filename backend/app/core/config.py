@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     s3_soundeffects_bucket: str | None = Field(default=None, validation_alias=AliasChoices("S3_SOUNDEFFECTS_BUCKET"))
     s3_userassets_bucket: str | None = Field(default=None, validation_alias=AliasChoices("S3_USERASSETS_BUCKET"))
 
+    # For deleting episode outputs/story assets when URLs are not available
+    s3_results_bucket: str | None = Field(default=None, validation_alias=AliasChoices("S3_RESULTS_BUCKET", "RESULTS_BUCKET"))
+
     kakao_client_id: str | None = None
     kakao_client_secret: str | None = None
     kakao_redirect_uri: str | None = None
