@@ -5,5 +5,3 @@ from .episodes import router as episodes_router
 from .shorts import router as shorts_router
 from .media import router as media_router
 from .admin import router as admin_router
-from .assets import router as assets_router
-from .admin import router as admin_router
