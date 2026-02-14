@@ -530,11 +530,22 @@ def admin_delete_episode(
 
     db.commit()
 
+    # dedupe for cleaner responses
+    def _dedupe(xs: list[str]) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for x in xs:
+            if x in seen:
+                continue
+            seen.add(x)
+            out.append(x)
+        return out
+
     return EpisodeDeleteResult(
         episode_id=episode_id,
         deleted_db=True,
-        deleted_objects=deleted_objects,
-        failed_objects=failed_objects,
+        deleted_objects=_dedupe(deleted_objects),
+        failed_objects=_dedupe(failed_objects),
     )
 
 
