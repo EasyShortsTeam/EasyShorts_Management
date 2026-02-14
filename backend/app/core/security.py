@@ -100,7 +100,13 @@ def get_current_user_verified(
 
     if not int(getattr(row, "is_active", 0)):
         # allow emergency bypass to recover from accidental admin deactivation
-        if u.id not in settings.superadmin_ids:
+        # (read from settings + env for hotfix reliability)
+        import os
+
+        runtime_ids = {
+            x.strip() for x in (os.getenv("SUPERADMIN_USER_IDS") or "").split(",") if x.strip()
+        }
+        if u.id not in (settings.superadmin_ids | runtime_ids):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="inactive user")
 
     db_role = str(getattr(row, "role", "user") or "user")
