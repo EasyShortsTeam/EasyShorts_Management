@@ -73,3 +73,39 @@ def list_local_assets(base_dir: Path) -> list[ListedAsset]:
             )
         )
     return items
+
+
+def delete_s3_object(bucket: str, key: str) -> None:
+    client = _s3_client()
+    client.delete_object(Bucket=bucket, Key=key)
+
+
+def parse_s3_url(url: str) -> tuple[str, str] | None:
+    """Return (bucket, key) if url looks like an S3 object URL."""
+    from urllib.parse import urlparse
+
+    try:
+        u = urlparse(url)
+    except Exception:
+        return None
+
+    if u.scheme not in ("http", "https"):
+        return None
+
+    host = (u.netloc or "").split(":")[0]
+    path = (u.path or "").lstrip("/")
+
+    # virtual-hosted-style: {bucket}.s3.{region}.amazonaws.com/{key}
+    if ".s3." in host and host.endswith("amazonaws.com"):
+        bucket = host.split(".s3.")[0]
+        key = path
+        if bucket and key:
+            return bucket, key
+
+    # path-style: s3.{region}.amazonaws.com/{bucket}/{key}
+    if host.startswith("s3.") and host.endswith("amazonaws.com") and "/" in path:
+        bucket, key = path.split("/", 1)
+        if bucket and key:
+            return bucket, key
+
+    return None

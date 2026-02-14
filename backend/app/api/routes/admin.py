@@ -4,27 +4,46 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.core.security import require_admin
 from app.db.session import get_db
-from app.db.tables import Credit, Episode, EpisodeMeta, EpisodeOutputs, Job, OAuth, Plan, User
+from app.db.tables import (
+    Credit,
+    CreditLog,
+    Episode,
+    EpisodeMeta,
+    EpisodeOutputs,
+    Job,
+    OAuth,
+    Order,
+    Plan,
+    StoryAsset,
+    StoryShot,
+    StoryTTSSegment,
+    User,
+)
 from app.schemas.admin import (
     ActivePatch,
     AdminEpisode,
     AdminJob,
+    AdminOverviewMetrics,
     AdminUser,
     AssetItem,
     CreditPatch,
+    DailyAgg,
+    EpisodeDeleteResult,
     Page,
     PlanPatch,
+    StatusAgg,
 )
 
 from app.core.config import settings
-from app.services.assets import list_local_assets, list_s3_objects, upload_s3
+from app.services.assets import delete_s3_object, list_local_assets, list_s3_objects, parse_s3_url, upload_s3
 
 router = APIRouter(dependencies=[Depends(require_admin)])
+# admin-only endpoints
 
 
 def _page(items: list[Any], total: int, limit: int, offset: int) -> Page:
@@ -338,6 +357,132 @@ def admin_get_job(job_id: str, db: Session = Depends(get_db)):
         updated_at=j.updated_at,
         result=j.result,
         error=j.error,
+    )
+
+
+@router.get("/metrics/overview", response_model=AdminOverviewMetrics)
+def admin_metrics_overview(
+    days: int = Query(default=14, ge=1, le=90),
+    db: Session = Depends(get_db),
+):
+    # totals
+    users_total = db.execute(select(func.count()).select_from(User)).scalar_one()
+    users_active = db.execute(select(func.count()).select_from(User).where(User.is_active == 1)).scalar_one()
+    episodes_total = db.execute(select(func.count()).select_from(Episode)).scalar_one()
+    jobs_total = db.execute(select(func.count()).select_from(Job)).scalar_one()
+
+    # grouped counts
+    jobs_by_status_rows = db.execute(select(Job.status, func.count()).group_by(Job.status)).all()
+    jobs_by_status = [StatusAgg(status=r[0], count=int(r[1]), amount_sum=None) for r in jobs_by_status_rows]
+
+    orders_by_status_rows = db.execute(
+        select(Order.status, func.count(), func.coalesce(func.sum(Order.amount), 0)).group_by(Order.status)
+    ).all()
+    orders_by_status = [StatusAgg(status=r[0], count=int(r[1]), amount_sum=int(r[2] or 0)) for r in orders_by_status_rows]
+
+    # daily series (MySQL DATE())
+    orders_daily_rows = db.execute(
+        select(func.date(Order.created_at), func.count(), func.coalesce(func.sum(Order.amount), 0))
+        .where(Order.created_at >= func.date_sub(func.now(), text(f"interval {int(days)} day")))
+        .group_by(func.date(Order.created_at))
+        .order_by(func.date(Order.created_at).asc())
+    ).all()
+    orders_daily = [DailyAgg(date=str(r[0]), count=int(r[1]), amount_sum=int(r[2] or 0)) for r in orders_daily_rows]
+
+    credit_daily_rows = db.execute(
+        select(func.date(CreditLog.created_at), func.count(), func.coalesce(func.sum(CreditLog.amount), 0))
+        .where(CreditLog.created_at >= func.date_sub(func.now(), text(f"interval {int(days)} day")))
+        .group_by(func.date(CreditLog.created_at))
+        .order_by(func.date(CreditLog.created_at).asc())
+    ).all()
+    credit_logs_daily = [DailyAgg(date=str(r[0]), count=int(r[1]), amount_sum=int(r[2] or 0)) for r in credit_daily_rows]
+
+    return AdminOverviewMetrics(
+        users_total=int(users_total),
+        users_active=int(users_active),
+        episodes_total=int(episodes_total),
+        jobs_total=int(jobs_total),
+        jobs_by_status=jobs_by_status,
+        orders_by_status=orders_by_status,
+        orders_daily=orders_daily,
+        credit_logs_daily=credit_logs_daily,
+    )
+
+
+@router.delete("/episodes/{episode_id}", response_model=EpisodeDeleteResult)
+def admin_delete_episode(
+    episode_id: str,
+    delete_objects: bool = Query(default=True, description="delete s3/local objects if URLs exist"),
+    db: Session = Depends(get_db),
+):
+    # Load episode and outputs first
+    ep: Episode | None = db.execute(select(Episode).where(Episode.episode_id == episode_id)).scalar_one_or_none()
+    if not ep:
+        raise HTTPException(status_code=404, detail="episode not found")
+
+    out: EpisodeOutputs | None = db.execute(
+        select(EpisodeOutputs).where(EpisodeOutputs.episode_id == episode_id)
+    ).scalar_one_or_none()
+
+    urls: list[str] = []
+    if out and out.video_url:
+        urls.append(str(out.video_url))
+    if out and out.preview_video_url:
+        urls.append(str(out.preview_video_url))
+
+    deleted_objects: list[str] = []
+    failed_objects: list[str] = []
+
+    if delete_objects:
+        from pathlib import Path
+
+        static_root = Path("app/static")
+        for url in urls:
+            # local static
+            if url.startswith("/static/"):
+                rel = url[len("/static/") :].lstrip("/")
+                p = static_root / rel
+                try:
+                    if p.exists() and p.is_file():
+                        p.unlink()
+                        deleted_objects.append(url)
+                except Exception:
+                    failed_objects.append(url)
+                continue
+
+            # s3 url
+            parsed = parse_s3_url(url)
+            if parsed:
+                bucket, key = parsed
+                try:
+                    delete_s3_object(bucket=bucket, key=key)
+                    deleted_objects.append(url)
+                except Exception:
+                    failed_objects.append(url)
+
+    # Delete DB rows (manual cascade to be safe)
+    # story assets/tts/shots
+    shot_ids = [
+        int(r[0])
+        for r in db.execute(select(StoryShot.id).where(StoryShot.episode_id == episode_id)).all()
+    ]
+    if shot_ids:
+        db.query(StoryTTSSegment).filter(StoryTTSSegment.shot_id.in_(shot_ids)).delete(synchronize_session=False)
+
+    db.query(StoryAsset).filter(StoryAsset.episode_id == episode_id).delete(synchronize_session=False)
+    db.query(StoryShot).filter(StoryShot.episode_id == episode_id).delete(synchronize_session=False)
+
+    db.query(EpisodeOutputs).filter(EpisodeOutputs.episode_id == episode_id).delete(synchronize_session=False)
+    db.query(EpisodeMeta).filter(EpisodeMeta.episode_id == episode_id).delete(synchronize_session=False)
+    db.query(Episode).filter(Episode.episode_id == episode_id).delete(synchronize_session=False)
+
+    db.commit()
+
+    return EpisodeDeleteResult(
+        episode_id=episode_id,
+        deleted_db=True,
+        deleted_objects=deleted_objects,
+        failed_objects=failed_objects,
     )
 
 

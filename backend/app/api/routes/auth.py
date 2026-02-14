@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from app.core.security import UserContext, get_current_user
+from app.core.security import UserContext, get_current_user_verified
 from app.schemas.auth import TokenResponse, User
 from app.schemas.common import Message
 
@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.get("/me", response_model=User)
-def me(u: UserContext = Depends(get_current_user)):
+def me(u: UserContext = Depends(get_current_user_verified)):
     return User(id=u.id, email=u.email, role=u.role)
 
 

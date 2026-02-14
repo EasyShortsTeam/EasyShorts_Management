@@ -52,6 +52,36 @@ export type AssetItem = {
   url?: string | null
 }
 
+export type StatusAgg = {
+  status: string
+  count: number
+  amount_sum?: number | null
+}
+
+export type DailyAgg = {
+  date: string
+  count: number
+  amount_sum?: number | null
+}
+
+export type AdminOverviewMetrics = {
+  users_total: number
+  users_active: number
+  episodes_total: number
+  jobs_total: number
+  jobs_by_status: StatusAgg[]
+  orders_by_status: StatusAgg[]
+  orders_daily: DailyAgg[]
+  credit_logs_daily: DailyAgg[]
+}
+
+export type EpisodeDeleteResult = {
+  episode_id: string
+  deleted_db: boolean
+  deleted_objects: string[]
+  failed_objects: string[]
+}
+
 export async function listUsers(params: { q?: string; is_active?: number; limit?: number; offset?: number }): Promise<Page<AdminUser>> {
   const { data } = await api.get<Page<AdminUser>>('/api/admin/users', { params })
   return data
@@ -72,8 +102,18 @@ export async function listEpisodes(params: { q?: string; user_id?: string; limit
   return data
 }
 
+export async function deleteEpisode(episode_id: string, params?: { delete_objects?: boolean }): Promise<EpisodeDeleteResult> {
+  const { data } = await api.delete<EpisodeDeleteResult>(`/api/admin/episodes/${episode_id}`, { params })
+  return data
+}
+
 export async function listJobs(params: { status?: string; job_type?: string; limit?: number; offset?: number }): Promise<Page<AdminJob>> {
   const { data } = await api.get<Page<AdminJob>>('/api/admin/jobs', { params })
+  return data
+}
+
+export async function getOverviewMetrics(params?: { days?: number }): Promise<AdminOverviewMetrics> {
+  const { data } = await api.get<AdminOverviewMetrics>('/api/admin/metrics/overview', { params })
   return data
 }
 

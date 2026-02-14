@@ -1,6 +1,6 @@
 import { Box, Card, CardContent, Chip, LinearProgress, Stack, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { listJobs, type AdminJob } from '../features/admin/adminApi'
+import { getOverviewMetrics, listJobs, type AdminJob } from '../features/admin/adminApi'
 import { useAuthStore } from '../stores/auth'
 
 function fmtDate(s?: string) {
@@ -31,6 +31,12 @@ export default function DashboardPage() {
     refetchInterval: 3000,
   })
 
+  const metrics = useQuery({
+    queryKey: ['admin.metrics.overview', { days: 14 }],
+    queryFn: () => getOverviewMetrics({ days: 14 }),
+    refetchInterval: 10000,
+  })
+
   return (
     <Stack spacing={2}>
       <Typography variant="h5" fontWeight={800}>대시보드</Typography>
@@ -42,17 +48,53 @@ export default function DashboardPage() {
           gap: 2,
         }}
       >
-        <Card>
-          <CardContent>
-            <Typography variant="overline" color="text.secondary">로그인 사용자</Typography>
-            <Typography fontWeight={700}>{user?.username ?? '-'}</Typography>
-            <Typography variant="body2" color="text.secondary">{user?.email ?? '-'}</Typography>
-            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-              <Chip size="small" label={user?.plan ?? '-'} />
-              <Chip size="small" label={`credit: ${user?.credit ?? 0}`} variant="outlined" />
-            </Stack>
-          </CardContent>
-        </Card>
+        <Stack spacing={2}>
+          <Card>
+            <CardContent>
+              <Typography variant="overline" color="text.secondary">로그인 사용자</Typography>
+              <Typography fontWeight={700}>{user?.username ?? '-'}</Typography>
+              <Typography variant="body2" color="text.secondary">{user?.email ?? '-'}</Typography>
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                <Chip size="small" label={user?.plan ?? '-'} />
+                <Chip size="small" label={`credit: ${user?.credit ?? 0}`} variant="outlined" />
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Typography variant="overline" color="text.secondary">지표(최근 14일 포함)</Typography>
+              {metrics.isLoading ? (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>로딩...</Typography>
+              ) : metrics.error ? (
+                <Typography variant="body2" color="error" sx={{ mt: 1 }}>지표 조회 실패</Typography>
+              ) : (
+                <Stack spacing={1} sx={{ mt: 1 }}>
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    <Chip size="small" label={`users: ${metrics.data?.users_total ?? 0}`} />
+                    <Chip size="small" variant="outlined" label={`active: ${metrics.data?.users_active ?? 0}`} />
+                    <Chip size="small" label={`episodes: ${metrics.data?.episodes_total ?? 0}`} />
+                    <Chip size="small" label={`jobs: ${metrics.data?.jobs_total ?? 0}`} />
+                  </Stack>
+
+                  <Typography variant="caption" color="text.secondary">jobs by status</Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    {(metrics.data?.jobs_by_status ?? []).map((s) => (
+                      <Chip key={s.status} size="small" variant="outlined" label={`${s.status}: ${s.count}`} />
+                    ))}
+                  </Stack>
+
+                  <Typography variant="caption" color="text.secondary">orders by status</Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    {(metrics.data?.orders_by_status ?? []).map((s) => (
+                      <Chip key={s.status} size="small" variant="outlined" label={`${s.status}: ${s.count} / ₩${s.amount_sum ?? 0}`} />
+                    ))}
+                  </Stack>
+                </Stack>
+              )}
+            </CardContent>
+          </Card>
+        </Stack>
 
         <Card>
           <CardContent>

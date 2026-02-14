@@ -15,8 +15,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useQuery } from '@tanstack/react-query'
-import { listEpisodes } from '../features/admin/adminApi'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { deleteEpisode, listEpisodes } from '../features/admin/adminApi'
 
 function fmtDate(s?: string) {
   if (!s) return '-'
@@ -30,6 +30,14 @@ export default function EpisodesPage() {
   const [userId, setUserId] = useState('')
   const [offset, setOffset] = useState(0)
   const limit = 50
+
+  const qc = useQueryClient()
+  const del = useMutation({
+    mutationFn: (episode_id: string) => deleteEpisode(episode_id, { delete_objects: true }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['admin.episodes'] })
+    },
+  })
 
   const queryKey = useMemo(() => ['admin.episodes', { q, userId, limit, offset }], [q, userId, limit, offset])
   const { data, isLoading, error } = useQuery({
@@ -89,6 +97,7 @@ export default function EpisodesPage() {
                 <TableCell>created</TableCell>
                 <TableCell>outputs</TableCell>
                 <TableCell>error</TableCell>
+                <TableCell align="right">actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -122,12 +131,27 @@ export default function EpisodesPage() {
                       <Typography variant="body2" color="text.secondary">-</Typography>
                     )}
                   </TableCell>
+                  <TableCell align="right">
+                    <Button
+                      size="small"
+                      color="error"
+                      variant="outlined"
+                      disabled={del.isPending}
+                      onClick={() => {
+                        const ok = window.confirm(`에피소드 삭제할까?\n\n${e.episode_id}\n\n(DB + S3 결과물 URL까지 삭제 시도)`)
+                        if (!ok) return
+                        del.mutate(e.episode_id)
+                      }}
+                    >
+                      삭제
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
 
               {!isLoading && items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7}>
+                  <TableCell colSpan={8}>
                     <Typography variant="body2" color="text.secondary">결과 없음</Typography>
                   </TableCell>
                 </TableRow>
@@ -152,7 +176,8 @@ export default function EpisodesPage() {
       </Card>
 
       <Alert severity="info">
-        다음 단계(원하면): 에피소드 삭제(출력 S3 포함), 재시도(retry) 같은 관리자 액션을 /api/admin/episodes/* 로 추가하면 돼.
+        에피소드 삭제 버튼은 DB 레코드 + video_url/preview_video_url에 있는 S3 오브젝트까지 삭제를 시도해.
+        (S3 권한 없으면 오브젝트 삭제만 실패로 남고 DB는 삭제됨)
       </Alert>
     </Stack>
   )

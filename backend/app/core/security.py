@@ -23,8 +23,10 @@ from typing import Any, Dict, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.db.session import get_db
 
 
 @dataclass
@@ -65,10 +67,7 @@ def _to_user_context(payload: Dict[str, Any]) -> UserContext:
 
 
 def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer)) -> UserContext:
-    """Return current user context from Bearer JWT.
-
-    Raises 401 if token is missing or invalid.
-    """
+    """Return current user context from Bearer JWT (no DB lookup)."""
 
     if not credentials or credentials.scheme.lower() != "bearer" or not credentials.credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer token")
@@ -77,8 +76,43 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depen
     return _to_user_context(payload)
 
 
-def require_admin(user: UserContext = Depends(get_current_user)) -> UserContext:
-    """Gate for admin-only APIs."""
+def get_current_user_verified(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+    db: Session = Depends(get_db),
+) -> UserContext:
+    """Return current user context and verify against DB.
+
+    - user must exist in DB
+    - is_active must be truthy
+    - role is taken from DB (fail closed if mismatch)
+
+    This prevents trusting a forged `role=admin` claim.
+    """
+
+    from sqlalchemy import select
+    from app.db.tables import User
+
+    u = get_current_user(credentials)
+
+    row = db.execute(select(User).where(User.user_id == u.id)).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="user not found")
+
+    if not int(getattr(row, "is_active", 0)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="inactive user")
+
+    db_role = str(getattr(row, "role", "user") or "user")
+    if db_role not in ("admin", "user"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="invalid user role")
+
+    if u.role != db_role:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="role mismatch")
+
+    return UserContext(id=u.id, email=u.email, role=db_role, raw=u.raw)
+
+
+def require_admin(user: UserContext = Depends(get_current_user_verified)) -> UserContext:
+    """Gate for admin-only APIs (verified against DB)."""
 
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="admin only")

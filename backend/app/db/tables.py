@@ -93,3 +93,71 @@ class Job(Base):
     error = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class Order(Base):
+    __tablename__ = 'orders'
+
+    id = Column(Integer, primary_key=True)
+    order_id = Column(String(64), unique=True, index=True, nullable=False)
+    user_id = Column(String(255), ForeignKey('users.user_id', ondelete='CASCADE'), index=True, nullable=False)
+    plan_id = Column(String(50), nullable=False)
+    amount = Column(Integer, nullable=False)
+    status = Column(String(20), default='pending', nullable=False)
+    payment_key = Column(String(255), nullable=True)
+    receipt_url = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CreditLog(Base):
+    __tablename__ = 'credit_logs'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(255), ForeignKey('users.user_id', ondelete='CASCADE'), index=True, nullable=False)
+    amount = Column(Integer, nullable=False)
+    reason = Column(String(50), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class StoryShot(Base):
+    __tablename__ = 'story_shots'
+
+    id = Column(Integer, primary_key=True)
+    episode_id = Column(String(255), ForeignKey('episodes.episode_id', ondelete='CASCADE'), index=True, nullable=False)
+    order_index = Column(Integer, nullable=False)
+    start_sec = Column(Float, nullable=False)
+    duration_sec = Column(Float, nullable=False)
+    visual_summary = Column(Text, nullable=True)
+    image_prompt = Column(Text, nullable=True)
+    negative_prompt = Column(Text, nullable=True)
+    current_image_asset_id = Column(Integer, ForeignKey('story_assets.id', ondelete='SET NULL'), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class StoryTTSSegment(Base):
+    __tablename__ = 'story_tts_segments'
+
+    id = Column(Integer, primary_key=True)
+    shot_id = Column(Integer, ForeignKey('story_shots.id', ondelete='CASCADE'), index=True, nullable=False)
+    order_index = Column(Integer, nullable=False)
+    speaker_id = Column(String(50), nullable=False)
+    text = Column(Text, nullable=False)
+    voice_id = Column(String(100), nullable=True)
+    current_audio_asset_id = Column(Integer, ForeignKey('story_assets.id', ondelete='SET NULL'), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class StoryAsset(Base):
+    __tablename__ = 'story_assets'
+
+    id = Column(Integer, primary_key=True)
+    episode_id = Column(String(255), ForeignKey('episodes.episode_id', ondelete='CASCADE'), index=True, nullable=False)
+    shot_id = Column(Integer, ForeignKey('story_shots.id', ondelete='CASCADE'), index=True, nullable=True)
+    segment_id = Column(Integer, ForeignKey('story_tts_segments.id', ondelete='CASCADE'), index=True, nullable=True)
+    asset_type = Column(String(20), nullable=False)
+    provider = Column(String(50), nullable=True)
+    s3_key = Column(String(500), nullable=False)
+    meta_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
